@@ -32,7 +32,10 @@ const MOCKS = {
         createConversation: async () => 1,
         saveUserMessage: async () => {},
         saveAssistantMessage() {},
-        loadConversation: async () => true,
+        loadConversation: async (_id, beforeOpen) => {
+          beforeOpen?.();
+          return true;
+        },
         handleNewChat() {},
       };
     }
