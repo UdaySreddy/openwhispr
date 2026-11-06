@@ -4,6 +4,7 @@ const {
   decideNoteWorkspaceScope,
   isSpaceInWorkspaceScope,
   manageableWorkspaces,
+  notesAddableToFolder,
   selectWorkspaceForSpaceCreation,
   spacesInWorkspaceScope,
 } = require("../../src/lib/workspaceSelection.ts");
@@ -149,4 +150,51 @@ test("selectWorkspaceForSpaceCreation: falls back to active, then first manageab
   assert.equal(selectWorkspaceForSpaceCreation(manageable, manageable[1], null)?.id, "b");
   assert.equal(selectWorkspaceForSpaceCreation(manageable, workspace("x", "member"), "x")?.id, "a");
   assert.equal(selectWorkspaceForSpaceCreation([], null, null), null);
+});
+
+test("isSpaceInWorkspaceScope: choosing Personal hides listed workspaces' spaces", () => {
+  assert.equal(isSpaceInWorkspaceScope(personal, null, listed, true), true);
+  assert.equal(isSpaceInWorkspaceScope(teamIn(2, "a"), null, listed, true), false);
+  assert.equal(isSpaceInWorkspaceScope(teamIn(3, "b"), null, listed, true), false);
+});
+
+test("isSpaceInWorkspaceScope: choosing Personal leaves unreachable spaces visible", () => {
+  assert.equal(isSpaceInWorkspaceScope(teamIn(2, null), null, listed, true), true);
+  assert.equal(isSpaceInWorkspaceScope(teamIn(3, "gone"), null, listed, true), true);
+});
+
+test("decideNoteWorkspaceScope: choosing Personal closes a team note", () => {
+  assert.deepEqual(
+    decide({
+      activeWorkspaceId: null,
+      personalSelected: true,
+      contextSpace: teamIn(2, "a"),
+      noteSpace: teamIn(2, "a"),
+    }),
+    { kind: "leaveHidden", clearNote: true, context: "default" }
+  );
+});
+
+test("decideNoteWorkspaceScope: opening a team note from Personal enters its workspace", () => {
+  assert.deepEqual(
+    decide({
+      reason: "navigated",
+      activeWorkspaceId: null,
+      personalSelected: true,
+      noteSpace: teamIn(2, "a"),
+    }),
+    { kind: "enterWorkspace", workspaceId: "a" }
+  );
+});
+
+test("notesAddableToFolder offers only notes in visible spaces, outside the folder", () => {
+  const notes = [
+    { id: 1, space_id: 1, folder_id: null },
+    { id: 2, space_id: 1, folder_id: 7 },
+    { id: 3, space_id: 9, folder_id: null },
+  ];
+  assert.deepEqual(
+    notesAddableToFolder(notes, 7, new Set([1])).map((note) => note.id),
+    [1]
+  );
 });

@@ -1,4 +1,4 @@
-import type { SpaceItem, Workspace } from "../types/electron";
+import type { NoteItem, SpaceItem, Workspace } from "../types/electron";
 import { workspaceCan } from "./capabilities.ts";
 
 export function manageableWorkspaces(workspaces: Workspace[]): Workspace[] {
@@ -20,9 +20,13 @@ function isListedWorkspace(workspaceId: string, workspaces: Workspace[]): boolea
 export function isSpaceInWorkspaceScope(
   space: ScopedSpace,
   activeWorkspaceId: string | null,
-  workspaces: Workspace[]
+  workspaces: Workspace[],
+  personalSelected = false
 ): boolean {
   if (space.kind === "private") return true;
+  if (personalSelected) {
+    return space.workspace_id == null || !isListedWorkspace(space.workspace_id, workspaces);
+  }
   // An active id the list doesn't hold yet (still loading, just left) scopes nothing.
   if (activeWorkspaceId == null || !isListedWorkspace(activeWorkspaceId, workspaces)) return true;
   if (space.workspace_id == null || space.workspace_id === activeWorkspaceId) return true;
@@ -32,9 +36,26 @@ export function isSpaceInWorkspaceScope(
 export function spacesInWorkspaceScope<S extends ScopedSpace>(
   spaces: S[],
   activeWorkspaceId: string | null,
-  workspaces: Workspace[]
+  workspaces: Workspace[],
+  personalSelected = false
 ): S[] {
-  return spaces.filter((space) => isSpaceInWorkspaceScope(space, activeWorkspaceId, workspaces));
+  return spaces.filter((space) =>
+    isSpaceInWorkspaceScope(space, activeWorkspaceId, workspaces, personalSelected)
+  );
+}
+
+/**
+ * The notes "Add existing" may offer for a folder. Adding one sets its folder, which also moves it
+ * into the folder's space, so a note the current scope hides must never be offered.
+ */
+export function notesAddableToFolder<N extends Pick<NoteItem, "folder_id" | "space_id">>(
+  notes: N[],
+  targetFolderId: number,
+  visibleSpaceIds: ReadonlySet<number>
+): N[] {
+  return notes.filter(
+    (note) => note.folder_id !== targetFolderId && visibleSpaceIds.has(note.space_id)
+  );
 }
 
 export type NoteWorkspaceScopeDecision =
@@ -55,12 +76,15 @@ export function decideNoteWorkspaceScope(input: {
   reason: NoteWorkspaceScopeReason;
   activeWorkspaceId: string | null;
   workspaces: Workspace[];
+  personalSelected?: boolean;
   contextSpace: ScopedSpace | null;
   noteSpace: ScopedSpace | null;
 }): NoteWorkspaceScopeDecision {
-  const { reason, activeWorkspaceId, workspaces, contextSpace, noteSpace } = input;
+  const { reason, activeWorkspaceId, workspaces, personalSelected, contextSpace, noteSpace } =
+    input;
   const hidden = (space: ScopedSpace | null): boolean =>
-    space != null && !isSpaceInWorkspaceScope(space, activeWorkspaceId, workspaces);
+    space != null &&
+    !isSpaceInWorkspaceScope(space, activeWorkspaceId, workspaces, personalSelected);
   const noteHidden = hidden(noteSpace);
   const contextHidden = hidden(contextSpace);
 
