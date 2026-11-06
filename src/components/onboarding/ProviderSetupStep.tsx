@@ -1,3 +1,4 @@
+import { useRegistryVersion } from "../../hooks/useRegistryVersion";
 import {
   useCallback,
   useEffect,
@@ -426,6 +427,7 @@ export function ByokProviderStep({
   resumeState?: OnboardingByokDraft;
   onResumeStateChange?: (state: OnboardingByokDraft) => void;
 }) {
+  const registryVersion = useRegistryVersion();
   const { t } = useTranslation();
   const store = useSettingsStore();
   const policy = usePolicySnapshot();
@@ -441,7 +443,8 @@ export function ByokProviderStep({
         scope,
         policy
       ),
-    [assistant, policy, scope]
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the catalog changes in place; its version is the signal
+    [assistant, policy, scope, registryVersion]
   );
   // The session's draft wins; without one (onboarding was restarted, or an older build
   // left it blank) the step reopens on what the user already saved, the same order
@@ -870,6 +873,7 @@ export function LocalModelSetupStep({
   resumeState?: OnboardingLocalModelDraft;
   onResumeStateChange?: (state: OnboardingLocalModelDraft) => void;
 }) {
+  const registryVersion = useRegistryVersion();
   const { t } = useTranslation();
   const store = useSettingsStore();
   const assistant = stepId === "local-assistant";
@@ -960,7 +964,7 @@ export function LocalModelSetupStep({
 
   useEffect(() => {
     void refreshDownloadedModels();
-  }, [refreshDownloadedModels]);
+  }, [refreshDownloadedModels, registryVersion]);
 
   const downloadedFor = (providerId: string): Set<string> =>
     assistant
@@ -1021,6 +1025,7 @@ export function LocalModelSetupStep({
       ...organization,
       icon: organization.id === "whisper" ? "openai" : organization.id,
     }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the catalog changes in place; its version is the signal
   }, [
     approvedCohereOffered,
     assistant,
@@ -1033,6 +1038,7 @@ export function LocalModelSetupStep({
     saved.provider,
     selectedModel,
     selectedProvider,
+    registryVersion,
   ]);
 
   const models = useMemo<
@@ -1077,7 +1083,8 @@ export function LocalModelSetupStep({
       recommended: model.recommended,
       icon: "openai",
     }));
-  }, [assistant, selectedModel, selectedProvider, installedAndBlocked]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the catalog changes in place; its version is the signal
+  }, [assistant, selectedModel, selectedProvider, installedAndBlocked, registryVersion]);
 
   useEffect(() => {
     if (

@@ -26,7 +26,15 @@ const {
   pathHasProblematicChars,
 } = require("./modelDirUtils");
 
-const modelRegistryData = require("../models/modelRegistryData.json");
+const {
+  registryData: modelRegistryData,
+  getRunnableSpeechModel,
+} = require("../models/registryData.js");
+const {
+  rememberInstalledModel,
+  forgetInstalledModels,
+  pruneInstalledModels,
+} = require("./installedModels");
 
 const CACHE_TTL_MS = 30000;
 
@@ -35,6 +43,7 @@ function getWhisperModelConfig(modelName) {
   if (!modelInfo) return null;
   return {
     url: modelInfo.downloadUrl,
+    sha256: modelInfo.sha256,
     size: modelInfo.expectedSizeBytes || modelInfo.sizeMb * 1_000_000,
     fileName: modelInfo.fileName,
   };
@@ -231,8 +240,8 @@ class WhisperManager {
 
   validateModelName(modelName) {
     // Only allow known model names to prevent path traversal attacks
-    const validModels = getValidModelNames();
-    if (!validModels.includes(modelName)) {
+    if (!getRunnableSpeechModel("whisperModels", modelName)) {
+      const validModels = getValidModelNames();
       throw new Error(`Invalid model name: ${modelName}. Valid models: ${validModels.join(", ")}`);
     }
     return true;
@@ -240,8 +249,10 @@ class WhisperManager {
 
   getModelPath(modelName) {
     this.validateModelName(modelName);
-    const config = getWhisperModelConfig(modelName);
-    return path.join(this.getModelsDir(), config.fileName);
+    return path.join(
+      this.getModelsDir(),
+      getRunnableSpeechModel("whisperModels", modelName).fileName
+    );
   }
 
   isModelDownloaded(modelName) {
@@ -774,12 +785,14 @@ class WhisperManager {
   async _policyAllowedDownloadWhisperModel(modelName, progressCallback = null) {
     this.validateModelName(modelName);
     const modelConfig = getWhisperModelConfig(modelName);
+    if (!modelConfig) throw new Error(`Whisper model "${modelName}" is retired.`);
 
     const modelPath = this.getModelPath(modelName);
     const modelsDir = this.getModelsDir();
 
     if (fs.existsSync(modelPath)) {
       const stats = await fsPromises.stat(modelPath);
+      rememberInstalledModel("whisperModels", "", modelName);
       return {
         model: modelName,
         downloaded: true,
@@ -822,6 +835,7 @@ class WhisperManager {
         timeout: 600000,
         signal,
         expectedSize: modelConfig.size,
+        expectedSha256: modelConfig.sha256,
         onProgress: (downloadedBytes, totalBytes) => {
           downloadProcess.percentage =
             totalBytes > 0 ? Math.round((downloadedBytes / totalBytes) * 100) : 0;
@@ -847,6 +861,8 @@ class WhisperManager {
         assertLocalModelOperation(this);
         progressCallback({ type: "complete", model: modelName, percentage: 100 });
       }
+
+      rememberInstalledModel("whisperModels", "", modelName);
 
       return {
         model: modelName,
@@ -928,6 +944,7 @@ class WhisperManager {
     if (fs.existsSync(modelPath)) {
       const stats = await fsPromises.stat(modelPath);
       await fsPromises.unlink(modelPath);
+      forgetInstalledModels("whisperModels", "", modelName);
       return {
         model: modelName,
         deleted: true,
@@ -965,6 +982,9 @@ class WhisperManager {
         }
       }
 
+      pruneInstalledModels("whisperModels", (_id, model) =>
+        fs.existsSync(path.join(modelsDir, model.fileName))
+      );
       return {
         success: true,
         deleted_count: deletedCount,

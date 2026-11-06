@@ -1,3 +1,4 @@
+import { useRegistryVersion } from "../../hooks/useRegistryVersion";
 import { usePolicyStore } from "../../stores/policyStore";
 import { getDownloadErrorMessage } from "../../hooks/useModelDownload";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
@@ -37,6 +38,7 @@ interface ActiveDownload {
   kind: DownloadKind;
   percentage: number;
   installing?: boolean;
+  verifying?: boolean;
   error?: string;
 }
 
@@ -162,6 +164,7 @@ export default function BackgroundModelDownloadTray({
 }: {
   placement?: "onboarding" | "control-panel";
 }) {
+  useRegistryVersion();
   const { t } = useTranslation();
   const [downloads, setDownloads] = useState<Record<string, ActiveDownload>>({});
   const [hydrated, setHydrated] = useState(false);
@@ -282,7 +285,7 @@ export default function BackgroundModelDownloadTray({
     const applyProgress = (event: {
       kind: DownloadKind;
       id: string;
-      type: "progress" | "installing" | "complete" | "error";
+      type: "progress" | "verifying" | "installing" | "complete" | "error";
       percentage: number | undefined;
       error?: string;
       code?: string;
@@ -327,6 +330,7 @@ export default function BackgroundModelDownloadTray({
             kind: event.kind,
             percentage: clampPercentage(event.percentage),
             installing: event.type === "installing",
+            verifying: event.type === "verifying",
             error:
               event.type === "error"
                 ? getDownloadErrorMessage(t, event.error ?? "", event.code)
@@ -505,7 +509,9 @@ export default function BackgroundModelDownloadTray({
               <span className="shrink-0 font-medium tabular-nums text-muted-foreground">
                 {download.installing
                   ? t("onboarding.rehaul.local.installing")
-                  : `${Math.round(download.percentage)}%`}
+                  : download.verifying
+                    ? t("onboarding.rehaul.local.verifying")
+                    : `${Math.round(download.percentage)}%`}
               </span>
             </div>
             {download.error ? (

@@ -1,3 +1,4 @@
+import { useRegistryVersion } from "../../hooks/useRegistryVersion";
 import { useState, useRef, useEffect, useId } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -48,6 +49,7 @@ import { describeProviderError } from "../../utils/describeProviderError";
 import {
   getAllReasoningModels,
   getBatchTranscriptionModel,
+  getTranscriptionProvider,
   getParakeetModelInfo,
   getTranscriptionProviders,
   isSherpaLocalProvider,
@@ -152,6 +154,7 @@ interface UploadAudioViewProps {
 }
 
 export default function UploadAudioView({ onNoteCreated, onOpenSettings }: UploadAudioViewProps) {
+  useRegistryVersion();
   const { t } = useTranslation();
   const [state, setState] = useState<UploadState>("idle");
   const [file, setFile] = useState<{
@@ -533,7 +536,13 @@ export default function UploadAudioView({ onNoteCreated, onOpenSettings }: Uploa
       cloudTranscriptionProvider === "custom"
         ? t("notes.upload.custom")
         : cloudTranscriptionProvider.charAt(0).toUpperCase() + cloudTranscriptionProvider.slice(1);
-    const model = getBatchTranscriptionModel(cloudTranscriptionProvider) ?? cloudTranscriptionModel;
+    // Same rule as the upload itself: the batch model replaces only a streaming selection.
+    const batchModel = getBatchTranscriptionModel(cloudTranscriptionProvider);
+    const selectedId = cloudTranscriptionModel?.trim();
+    const selected = getTranscriptionProvider(cloudTranscriptionProvider)?.models.find(
+      (option) => option.id === selectedId
+    );
+    const model = batchModel && (!selected || selected.streaming) ? batchModel : selectedId;
     return `${name} · ${model}`;
   };
 

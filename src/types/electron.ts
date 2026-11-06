@@ -1248,7 +1248,7 @@ export interface AppVersionResult {
 }
 
 export interface WhisperDownloadProgressData {
-  type: "progress" | "installing" | "complete" | "error";
+  type: "progress" | "verifying" | "installing" | "complete" | "error";
   model: string;
   percentage?: number;
   downloaded_bytes?: number;
@@ -1262,7 +1262,7 @@ export interface WhisperDownloadProgressData {
 export interface LocalModelDownloadStatus {
   modelType: "whisper" | "parakeet" | "llm";
   modelId: string;
-  phase: "downloading" | "installing";
+  phase: "downloading" | "verifying" | "installing";
   progress: number;
   downloadedBytes: number;
   totalBytes: number;
@@ -1311,7 +1311,7 @@ export interface ParakeetModelsListResult {
 }
 
 export interface ParakeetDownloadProgressData {
-  type: "progress" | "installing" | "complete" | "error";
+  type: "progress" | "verifying" | "installing" | "complete" | "error";
   model: string;
   percentage?: number;
   downloaded_bytes?: number;
@@ -2338,6 +2338,8 @@ declare global {
         code?: string;
         details?: string;
       }>;
+      listRetiredLocalModels?: () => Promise<Array<{ id: string; name: string }>>;
+      deleteRetiredLocalModels?: () => Promise<{ success: boolean }>;
       modelDelete: (modelId: string) => Promise<{
         success: boolean;
         error?: string;
@@ -2521,6 +2523,11 @@ declare global {
       checkForUpdates: () => Promise<UpdateCheckResult>;
       downloadUpdate: () => Promise<UpdateResult>;
       installUpdate: () => Promise<UpdateResult>;
+      initialModelRegistrySnapshot: import("../models/registryData").RegistrySnapshot;
+      getModelRegistry: () => Promise<import("../models/registryData").RegistrySnapshot>;
+      onModelRegistryUpdated: (
+        callback: (snapshot: import("../models/registryData").RegistrySnapshot) => void
+      ) => () => void;
       getAppVersion: () => Promise<AppVersionResult>;
       getPostMigrationState: () => Promise<{ justMigrated: boolean }>;
       getOAuthProtocolRegistered: () => Promise<boolean>;
@@ -2834,6 +2841,8 @@ declare global {
         error?: string;
       }>;
       openLogsFolder: () => Promise<{ success: boolean; error?: string }>;
+      getModelRegistryUpdates: () => Promise<boolean>;
+      setModelRegistryUpdates: (enabled: boolean) => Promise<{ success: boolean; error?: string }>;
 
       // FFmpeg availability
       checkFFmpegAvailability: () => Promise<FFmpegAvailabilityResult>;
