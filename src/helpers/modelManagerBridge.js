@@ -28,6 +28,8 @@ const {
 } = require("./llamaContextPolicy");
 
 const MIN_FILE_SIZE = 1_000_000; // 1MB minimum for valid model files
+// Room a download reserves: the model file(s) plus headroom.
+const LLM_DISK_SPACE_FACTOR = 1.2;
 
 // The context every server still STARTS at. Requests that need more grow it
 // on demand, bounded by a per-machine, per-model ceiling (llamaContextPolicy).
@@ -351,7 +353,7 @@ class ModelManager {
         requiredBytes += model.draftSizeBytes;
       }
       if (requiredBytes > 0) {
-        this.downloadReservations.set(modelId, requiredBytes * 1.2);
+        this.downloadReservations.set(modelId, requiredBytes * LLM_DISK_SPACE_FACTOR);
         const reservedBytes = this.getReservedDownloadBytes();
         const spaceCheck = await checkDiskSpace(this.modelsDir, reservedBytes);
         if (!spaceCheck.ok) {
@@ -915,6 +917,10 @@ class ModelManager {
     this.currentServerModelId = null;
   }
 
+  async stopServerWhenIdle() {
+    if (await this.serverManager.stopWhenIdle()) this.currentServerModelId = null;
+  }
+
   getServerStatus() {
     return this.serverManager.getStatus();
   }
@@ -976,4 +982,5 @@ module.exports = {
   default: new ModelManager(),
   ModelError,
   ModelNotFoundError,
+  LLM_DISK_SPACE_FACTOR,
 };

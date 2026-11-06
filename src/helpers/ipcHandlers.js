@@ -148,6 +148,7 @@ const AudioStorageManager = require("./audioStorage");
 const { SkillLibrary } = require("./skills/skillLibrary");
 const { registerSkillsIpc } = require("./skills/skillsIpc");
 const LocalModelDownloadStatus = require("./localModelDownloadStatus");
+const { readLocalSetupSpace } = require("./localSetupSpace");
 const AgentStreamRequestRegistry = require("./agentStreamRequestRegistry");
 const createMeetingTranscriptionLifecycle = require("./meetingTranscriptionLifecycle");
 const liveSpeakerIdentifier = require("./liveSpeakerIdentifier");
@@ -6338,6 +6339,12 @@ class IPCHandlers {
       }
     });
 
+    ipcMain.handle("get-computer-profile", () =>
+      require("./computerProfile").readComputerProfile()
+    );
+
+    ipcMain.handle("get-local-setup-space", () => readLocalSetupSpace());
+
     ipcMain.handle("get-llama-vulkan-status", async () => {
       try {
         if (!this._llamaVulkanManager) {
@@ -6382,8 +6389,9 @@ class IPCHandlers {
           delete process.env.LLAMA_GPU_BACKEND;
           modelManager.serverManager.cachedServerBinaryPaths = null;
           await this.environmentManager.saveAllKeysToEnvFile().catch(() => {});
-          // Stop server so next inference picks up the new Vulkan binary
-          await modelManager.stopServer().catch(() => {});
+          // The next inference picks up the new Vulkan binary. The pack can land in
+          // the background after onboarding, so an answer in progress finishes first.
+          modelManager.stopServerWhenIdle().catch(() => {});
         }
 
         return result;
