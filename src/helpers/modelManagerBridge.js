@@ -27,6 +27,9 @@ const {
   BASELINE_CONTEXT_SIZE,
 } = require("./llamaContextPolicy");
 
+// start() refused to touch the running server: it was busy, or the caller gave up.
+const SERVER_LEFT_ALONE_CODES = new Set(["LOCAL_MODEL_BUSY", "LOCAL_MODEL_CANCELLED"]);
+
 const MIN_FILE_SIZE = 1_000_000; // 1MB minimum for valid model files
 // Room a download reserves: the model file(s) plus headroom.
 const LLM_DISK_SPACE_FACTOR = 1.2;
@@ -764,7 +767,12 @@ class ModelManager {
       const startAt = async (size) =>
         this.serverManager.start(
           modelPath,
-          await this.serverStartOptions(modelInfo, { contextSize: size, cacheRamMiB })
+          await this.serverStartOptions(modelInfo, {
+            contextSize: size,
+            cacheRamMiB,
+            busyWaitMs: options.busyWaitMs,
+            signal: options.signal,
+          })
         );
       // llama.cpp's startup dump is the diagnostic, so it goes to the log here
       // and nowhere else: details crosses IPC to the renderer, which neither
@@ -790,7 +798,10 @@ class ModelManager {
         // be stepped down again.
         if (this.serverManager.contextSize < contextSize) refuse(contextSize);
       } catch (error) {
-        if (isLocalModelPolicyRefusal(error)) throw error;
+        // The running server was left alone, which says nothing about this window.
+        if (isLocalModelPolicyRefusal(error) || SERVER_LEFT_ALONE_CODES.has(error.code)) {
+          throw error;
+        }
         refuse(contextSize);
         // start() stops the running server before it spawns, so a grow that
         // dies has already taken a working window with it. Come back at the
@@ -808,7 +819,12 @@ class ModelManager {
         try {
           await startAt(restorableContextSize);
         } catch (restoreError) {
-          if (isLocalModelPolicyRefusal(restoreError)) throw restoreError;
+          if (
+            isLocalModelPolicyRefusal(restoreError) ||
+            SERVER_LEFT_ALONE_CODES.has(restoreError.code)
+          ) {
+            throw restoreError;
+          }
           throw unavailable(restoreError);
         }
       }
@@ -869,6 +885,7 @@ class ModelManager {
         disableThinking: options.disableThinking,
         requireCompleteOutput: options.requireCompleteOutput || refuseWindowClip,
         responseFormat: options.responseFormat,
+        signal: options.signal,
       });
 
       const totalTime = Date.now() - startTime;
@@ -967,7 +984,11 @@ class ModelManager {
     if (!this.serverManager.isAvailable()) return false;
 
     try {
-      await this.serverManager.start(modelPath, await this.serverStartOptions(modelInfo));
+      // Nobody is waiting on a pre-warm, so it never gets in an answer's way.
+      await this.serverManager.start(
+        modelPath,
+        await this.serverStartOptions(modelInfo, { busyWaitMs: 0 })
+      );
       this.currentServerModelId = modelId;
       debugLogger.info("llama-server pre-warmed", { modelId });
       return true;
