@@ -915,6 +915,10 @@ class ModelManager {
     this.currentServerModelId = null;
   }
 
+  async stopServerWhenIdle() {
+    if (await this.serverManager.stopWhenIdle()) this.currentServerModelId = null;
+  }
+
   getServerStatus() {
     return this.serverManager.getStatus();
   }
