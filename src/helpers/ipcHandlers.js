@@ -3641,6 +3641,7 @@ class IPCHandlers {
       }
       return this.selectionManager.captureSelectedText({
         probeEditable: options.probeEditable === true,
+        forceFreshTarget: options.forceFreshTarget === true,
       });
     });
 
